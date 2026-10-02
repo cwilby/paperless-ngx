@@ -1092,27 +1092,6 @@ export class DocumentDetailComponent
       .subscribe({
         next: (result) => {
           this.suggestions.set(result)
-          if (this.aiEnabled && result.custom_fields) {
-            let changedCustomFields = false
-            this.document().custom_fields?.forEach((fieldInstance, index) => {
-              const suggestedValue = result.custom_fields[fieldInstance.field]
-              const valueControl = this.customFieldFormFields
-                .at(index)
-                ?.get('value')
-              if (
-                suggestedValue !== undefined &&
-                suggestedValue !== null &&
-                valueControl &&
-                (valueControl.value === null || valueControl.value === '')
-              ) {
-                valueControl.setValue(suggestedValue)
-                changedCustomFields = true
-              }
-            })
-            if (changedCustomFields) {
-              this.customFieldFormFields.markAsDirty()
-            }
-          }
         },
         error: (error) => {
           this.suggestions.set(null)
@@ -1839,6 +1818,94 @@ export class DocumentDetailComponent
   public getCustomFieldError(index: number) {
     const fieldError = this.error()?.custom_fields?.[index]
     return fieldError?.['non_field_errors'] ?? fieldError?.['value']
+  }
+
+  public getCustomFieldSuggestion(
+    fieldInstance: CustomFieldInstance
+  ): string | null {
+    if (!this.aiEnabled) return null
+    try {
+      const suggestion =
+        this.suggestions()?.custom_fields?.[fieldInstance.field]
+      if (suggestion === undefined || suggestion === null) return null
+      const valueControl = this.customFieldFormFields.controls
+        .find((control) => control.get('field')?.value === fieldInstance.field)
+        ?.get('value')
+      const currentValue = valueControl?.value
+      const field = this.getCustomFieldFromInstance(fieldInstance)
+      if (currentValue !== null && currentValue !== undefined) {
+        let currentComparable = `${currentValue}`
+        let suggestionComparable = `${suggestion}`
+        if (field?.data_type === CustomFieldDataType.Monetary) {
+          currentComparable = currentComparable.replace(/^[A-Z]{1,3}/i, '')
+        }
+        if (field?.data_type === CustomFieldDataType.Boolean) {
+          currentComparable = currentComparable.toLowerCase()
+          suggestionComparable = suggestionComparable.toLowerCase()
+        }
+        if (currentComparable === suggestionComparable) return null
+      }
+      if (field?.data_type === CustomFieldDataType.Select) {
+        const option = field.extra_data?.select_options?.find(
+          (item) => `${item.id}` === `${suggestion}`
+        )
+        return option?.label ?? `${suggestion}`
+      }
+      return `${suggestion}`
+    } catch (error) {
+      console.warn('Unable to read custom field AI suggestion', error)
+      return null
+    }
+  }
+
+  public applyCustomFieldSuggestion(fieldInstance: CustomFieldInstance): void {
+    try {
+      const rawSuggestion =
+        this.suggestions()?.custom_fields?.[fieldInstance.field]
+      const valueControl = this.customFieldFormFields.controls
+        .find((control) => control.get('field')?.value === fieldInstance.field)
+        ?.get('value')
+      if (
+        rawSuggestion === undefined ||
+        rawSuggestion === null ||
+        !valueControl
+      ) {
+        return
+      }
+
+      const field = this.getCustomFieldFromInstance(fieldInstance)
+      let value: any = rawSuggestion
+      switch (field?.data_type) {
+        case CustomFieldDataType.Boolean:
+          if (
+            `${rawSuggestion}`.toLowerCase() !== 'true' &&
+            `${rawSuggestion}`.toLowerCase() !== 'false'
+          ) {
+            return
+          }
+          value = `${rawSuggestion}`.toLowerCase() === 'true'
+          break
+        case CustomFieldDataType.Integer:
+        case CustomFieldDataType.Float:
+          value = Number(rawSuggestion)
+          if (!Number.isFinite(value)) return
+          break
+        case CustomFieldDataType.Select: {
+          const option = field.extra_data?.select_options?.find(
+            (item) => `${item.id}` === `${rawSuggestion}`
+          )
+          if (!option) return
+          value = option.id
+          break
+        }
+        case CustomFieldDataType.DocumentLink:
+          return
+      }
+      valueControl.setValue(value)
+      this.customFieldFormFields.markAsDirty()
+    } catch (error) {
+      console.warn('Unable to apply custom field AI suggestion', error)
+    }
   }
 
   private updateFormForCustomFields(emitEvent: boolean = false) {

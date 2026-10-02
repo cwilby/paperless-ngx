@@ -280,6 +280,12 @@
                       [error]="getCustomFieldError(i)"></pngx-input-textarea>
                     }
                   }
+                  @if (getCustomFieldSuggestion(fieldInstance); as suggestion) {
+                    <small class="d-block mb-3">
+                      <span i18n>Suggestion:</span>&nbsp;
+                      <button type="button" class="btn btn-link p-0 align-baseline" (click)="applyCustomFieldSuggestion(fieldInstance)">{{suggestion}}</button>
+                    </small>
+                  }
                 </div>
               }
             </div>

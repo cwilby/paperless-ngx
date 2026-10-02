@@ -1479,7 +1479,7 @@ describe('DocumentDetailComponent', () => {
     })
   })
 
-  it('should apply AI custom field suggestions to empty fields', () => {
+  it('should expose AI custom field suggestions without applying them automatically', () => {
     settingsService.set(SETTINGS_KEYS.DOCUMENT_EDITING_AUTO_SUGGEST, false)
     const getSetting = settingsService.get.bind(settingsService)
     jest
@@ -1509,16 +1509,33 @@ describe('DocumentDetailComponent', () => {
     component.getSuggestions()
 
     expect(component.customFieldFormFields.at(0).get('value').value).toEqual(
-      'Suggested text'
+      null
     )
-    expect(component.customFieldFormFields.at(1).get('value').value).toEqual(42)
+    expect(component.customFieldFormFields.at(1).get('value').value).toEqual('')
     expect(component.customFieldFormFields.at(2).get('value').value).toEqual(
       'Existing text'
     )
+    expect(
+      component.getCustomFieldSuggestion(component.document().custom_fields[0])
+    ).toBe('Suggested text')
+    expect(
+      component.getCustomFieldSuggestion(component.document().custom_fields[1])
+    ).toBe('42')
+    expect(
+      component.getCustomFieldSuggestion(component.document().custom_fields[2])
+    ).toBe('Replacement text')
+    expect(component.customFieldFormFields.dirty).toBe(false)
+
+    component.applyCustomFieldSuggestion(component.document().custom_fields[0])
+    component.applyCustomFieldSuggestion(component.document().custom_fields[1])
+    expect(component.customFieldFormFields.at(0).get('value').value).toEqual(
+      'Suggested text'
+    )
+    expect(component.customFieldFormFields.at(1).get('value').value).toEqual(42)
     expect(component.customFieldFormFields.dirty).toBe(true)
   })
 
-  it('should leave custom fields unchanged when AI has no usable values', () => {
+  it('should leave custom fields unchanged when AI has no usable suggestions', () => {
     settingsService.set(SETTINGS_KEYS.DOCUMENT_EDITING_AUTO_SUGGEST, false)
     const getSetting = settingsService.get.bind(settingsService)
     jest
@@ -1546,7 +1563,7 @@ describe('DocumentDetailComponent', () => {
     expect(component.customFieldFormFields.dirty).toBe(false)
   })
 
-  it('should not apply AI custom field suggestions when AI is disabled', () => {
+  it('should not expose AI custom field suggestions when AI is disabled', () => {
     settingsService.set(SETTINGS_KEYS.DOCUMENT_EDITING_AUTO_SUGGEST, false)
     jest
       .spyOn(documentService, 'getSuggestions')
