@@ -1526,6 +1526,23 @@ describe('DocumentDetailComponent', () => {
     ).toBe('Replacement text')
     expect(component.customFieldFormFields.dirty).toBe(false)
 
+    fixture.detectChanges()
+    const customFieldSuggestion = Array.from(
+      fixture.nativeElement.querySelectorAll('a')
+    ).find((link: HTMLAnchorElement) =>
+      link.textContent.includes('Suggested text')
+    ) as HTMLAnchorElement
+    expect(
+      customFieldSuggestion.parentElement.parentElement.classList.contains(
+        'col-md-9'
+      )
+    ).toBe(true)
+    expect(
+      customFieldSuggestion.parentElement.parentElement.parentElement.querySelector(
+        '.d-none.d-md-block.col-md-3'
+      )
+    ).not.toBeNull()
+
     component.applyCustomFieldSuggestion(component.document().custom_fields[0])
     component.applyCustomFieldSuggestion(component.document().custom_fields[1])
     expect(component.customFieldFormFields.at(0).get('value').value).toEqual(
