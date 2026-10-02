@@ -485,12 +485,19 @@ class TestApplyAISuggestionsTask(DirectoriesMixin, TestCase):
             mock.patch("documents.tasks.index_document") as index_document,
             mock.patch("documents.tasks.clear_document_caches") as clear_caches,
             mock.patch("documents.tasks.document_updated") as document_updated,
+            mock.patch(
+                "documents.signals.handlers.send_websocket_document_updated",
+            ) as send_websocket_document_updated,
         ):
             tasks.apply_ai_suggestions(self.action.pk, self.doc.pk)
 
         index_document.delay.assert_called_once_with(self.doc.pk)
         clear_caches.assert_called_once_with(self.doc.pk)
         document_updated.send.assert_not_called()
+        send_websocket_document_updated.assert_called_once_with(
+            sender=None,
+            document=self.doc,
+        )
 
     @override_settings(AI_ENABLED=True)
     def test_task_persists_custom_field_suggestions(self) -> None:

@@ -751,6 +751,12 @@ def apply_ai_suggestions(self, action_id: int, document_id: int) -> None:
     clear_document_caches(document.pk)
     index_document.delay(document.pk)
 
+    # The document_updated signal also runs updated workflows, which could
+    # queue this AI action again. Notify open clients directly instead.
+    from documents.signals.handlers import send_websocket_document_updated
+
+    send_websocket_document_updated(sender=None, document=document)
+
     ai_config = AIConfig()
     if ai_config.llm_index_enabled:
         update_document_in_llm_index.apply_async(kwargs={"document": document})
