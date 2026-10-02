@@ -208,6 +208,17 @@ class DocumentClassifierSchema(BaseModel):
     def _truncate(cls, value: Any, info: ValidationInfo) -> Any:
         return _truncate_to_field_limit(value, cls.model_fields[info.field_name])
 
+    @field_validator("custom_field_names", "custom_field_values", mode="before")
+    @classmethod
+    def _coerce_custom_field_items(cls, value: Any) -> list[str]:
+        """Keep malformed custom field response items from failing classification."""
+        if not isinstance(value, list):
+            return []
+        return [
+            str(item) if isinstance(item, (str, int, float, bool)) else ""
+            for item in value[:MAX_CUSTOM_FIELDS]
+        ]
+
 
 class TaxonomyChoiceDict(TypedDict):
     """Internal representation of names and existing IDs for one taxonomy."""

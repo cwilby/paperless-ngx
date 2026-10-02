@@ -91,6 +91,32 @@ def test_model_response_converts_names_to_internal_taxonomy_choices():
     }
 
 
+def test_numeric_and_boolean_custom_field_outputs_are_coerced_to_text():
+    parsed = DocumentClassifierSchema(
+        title="Invoice",
+        custom_field_names=["Quantity", "Paid", "Malformed"],
+        custom_field_values=[962, True, {"unexpected": "object"}],
+    )
+
+    suggestions = model_to_classification_suggestions(parsed)
+
+    assert suggestions["custom_fields"] == {
+        "Quantity": "962",
+        "Paid": "True",
+    }
+
+
+def test_malformed_custom_field_lists_do_not_fail_classification():
+    parsed = DocumentClassifierSchema(
+        title="Invoice",
+        custom_field_names={"unexpected": "mapping"},
+        custom_field_values="unexpected scalar",
+    )
+
+    assert parsed.custom_field_names == []
+    assert parsed.custom_field_values == []
+
+
 def test_valid_candidate_mappings_replace_only_the_matched_names():
     parsed = DocumentClassifierSchema(
         title="Electricity Bill",

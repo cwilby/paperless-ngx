@@ -2,7 +2,6 @@ import logging
 from datetime import date
 from datetime import datetime
 from decimal import Decimal
-from decimal import InvalidOperation
 from typing import TypeVar
 
 from django.contrib.auth.models import User
@@ -275,16 +274,16 @@ def apply_ai_suggestions_to_document(
             )
         }
         for field_name, raw_value in suggestions.get("custom_fields", {}).items():
-            field = fields_by_name.get(field_name)
-            if field is None or raw_value in (None, ""):
-                continue
-            existing = CustomFieldInstance.objects.filter(
-                document=document,
-                field=field,
-            ).first()
-            if existing and not overwrite and existing.value not in (None, ""):
-                continue
             try:
+                field = fields_by_name.get(field_name)
+                if field is None or raw_value in (None, ""):
+                    continue
+                existing = CustomFieldInstance.objects.filter(
+                    document=document,
+                    field=field,
+                ).first()
+                if existing and not overwrite and existing.value not in (None, ""):
+                    continue
                 if field.data_type == CustomField.FieldDataType.DATE:
                     value = date.fromisoformat(str(raw_value))
                 elif field.data_type == CustomField.FieldDataType.BOOL:
@@ -324,10 +323,10 @@ def apply_ai_suggestions_to_document(
                     defaults={value_field: value},
                 )
                 updated_fields.append(f"custom_fields.{field.name}")
-            except (InvalidOperation, TypeError, ValueError):
-                logger.debug(
-                    "Ignoring invalid AI value for custom field %s",
-                    field.name,
+            except Exception:
+                logger.exception(
+                    "Ignoring AI suggestion for custom field %s",
+                    field_name,
                 )
 
     logger.info(

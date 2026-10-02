@@ -5776,6 +5776,56 @@ class TestApplyAISuggestionsWorkflowAction(
             "2026-09-29",
         )
 
+    def test_custom_field_suggestion_failure_does_not_skip_later_fields(self) -> None:
+        failing_field = CustomField.objects.create(
+            name="Failing field",
+            data_type=CustomField.FieldDataType.STRING,
+        )
+        succeeding_field = CustomField.objects.create(
+            name="Succeeding field",
+            data_type=CustomField.FieldDataType.STRING,
+        )
+        action = self.make_action(
+            ai_suggestion_fields=[WorkflowAction.AISuggestionField.CUSTOM_FIELDS],
+        )
+        original_filter = CustomFieldInstance.objects.filter
+
+        def filter_with_one_failure(*args, **kwargs):
+            if kwargs.get("field") == failing_field:
+                raise RuntimeError("simulated field failure")
+            return original_filter(*args, **kwargs)
+
+        with mock.patch.object(
+            CustomFieldInstance.objects,
+            "filter",
+            side_effect=filter_with_one_failure,
+        ):
+            changed = self.apply(
+                action,
+                {
+                    **SUGGESTIONS,
+                    "custom_fields": {
+                        failing_field.name: "first value",
+                        succeeding_field.name: "second value",
+                    },
+                },
+            )
+
+        self.assertEqual(changed, [f"custom_fields.{succeeding_field.name}"])
+        self.assertFalse(
+            CustomFieldInstance.objects.filter(
+                document=self.doc,
+                field=failing_field,
+            ).exists(),
+        )
+        self.assertEqual(
+            CustomFieldInstance.objects.get(
+                document=self.doc,
+                field=succeeding_field,
+            ).value,
+            "second value",
+        )
+
     def test_custom_field_suggestions_convert_typed_values(self) -> None:
         fields = {
             "Invoice Date": CustomField.objects.create(
