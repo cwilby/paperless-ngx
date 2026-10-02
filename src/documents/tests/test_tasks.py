@@ -11,6 +11,8 @@ from django.utils import timezone
 
 from documents import tasks
 from documents.models import Correspondent
+from documents.models import CustomField
+from documents.models import CustomFieldInstance
 from documents.models import Document
 from documents.models import DocumentType
 from documents.models import Tag
@@ -489,6 +491,70 @@ class TestApplyAISuggestionsTask(DirectoriesMixin, TestCase):
         index_document.delay.assert_called_once_with(self.doc.pk)
         clear_caches.assert_called_once_with(self.doc.pk)
         document_updated.send.assert_not_called()
+
+    @override_settings(AI_ENABLED=True)
+    def test_task_persists_custom_field_suggestions(self) -> None:
+        text_field = CustomField.objects.create(
+            name="Invoice Number",
+            data_type=CustomField.FieldDataType.STRING,
+        )
+        amount_field = CustomField.objects.create(
+            name="Invoice Total",
+            data_type=CustomField.FieldDataType.MONETARY,
+        )
+        # The preceding Assignment action in the workflow has already attached
+        # these fields, but leaves their values empty for this background task.
+        CustomFieldInstance.objects.create(
+            document=self.doc,
+            field=text_field,
+            value_text=None,
+        )
+        CustomFieldInstance.objects.create(
+            document=self.doc,
+            field=amount_field,
+            value_monetary=None,
+        )
+        self.action.ai_suggestion_fields = [
+            WorkflowAction.AISuggestionField.CUSTOM_FIELDS,
+        ]
+        self.action.save(update_fields=["ai_suggestion_fields"])
+        suggestions = {
+            "title": "",
+            "tags": {"existing_ids": [], "new_names": []},
+            "correspondents": {"existing_ids": [], "new_names": []},
+            "document_types": {"existing_ids": [], "new_names": []},
+            "storage_paths": {"existing_ids": [], "new_names": []},
+            "dates": [],
+            "custom_fields": {
+                "Invoice Number": "INV-123",
+                "Invoice Total": "49.95",
+            },
+        }
+
+        with (
+            mock.patch(
+                "documents.workflows.ai.get_ai_document_classification",
+                return_value=suggestions,
+            ),
+            mock.patch("documents.tasks.index_document"),
+            mock.patch("documents.tasks.clear_document_caches"),
+        ):
+            tasks.apply_ai_suggestions(self.action.pk, self.doc.pk)
+
+        self.assertEqual(
+            CustomFieldInstance.objects.get(
+                document=self.doc,
+                field=text_field,
+            ).value,
+            "INV-123",
+        )
+        self.assertEqual(
+            CustomFieldInstance.objects.get(
+                document=self.doc,
+                field=amount_field,
+            ).value,
+            "49.95",
+        )
 
     def test_no_changes_skips_reindex(self) -> None:
         """

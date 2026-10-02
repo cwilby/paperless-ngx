@@ -722,7 +722,12 @@ class TestApiWorkflows(DirectoriesMixin, APITestCase):
         response = self._post_ai_suggestions_workflow(
             trigger_types=[WorkflowTrigger.WorkflowTriggerType.DOCUMENT_ADDED],
             action={
-                "ai_suggestion_fields": ["title", "tags", "correspondent"],
+                "ai_suggestion_fields": [
+                    "title",
+                    "tags",
+                    "correspondent",
+                    "custom_fields",
+                ],
                 "ai_create_missing": True,
                 "ai_overwrite_existing": True,
             },
@@ -732,7 +737,7 @@ class TestApiWorkflows(DirectoriesMixin, APITestCase):
         action = Workflow.objects.get(name="Apply AI suggestions").actions.first()
         self.assertEqual(
             action.ai_suggestion_fields,
-            ["title", "tags", "correspondent"],
+            ["title", "tags", "correspondent", "custom_fields"],
         )
         self.assertTrue(action.ai_create_missing)
         self.assertTrue(action.ai_overwrite_existing)

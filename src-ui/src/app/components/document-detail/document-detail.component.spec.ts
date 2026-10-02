@@ -1542,6 +1542,11 @@ describe('DocumentDetailComponent', () => {
         '.d-none.d-md-block.col-md-3'
       )
     ).not.toBeNull()
+    expect(
+      customFieldSuggestion.parentElement.parentElement.parentElement.classList.contains(
+        'custom-field-suggestion-row'
+      )
+    ).toBe(true)
 
     component.applyCustomFieldSuggestion(component.document().custom_fields[0])
     component.applyCustomFieldSuggestion(component.document().custom_fields[1])

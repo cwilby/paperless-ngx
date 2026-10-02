@@ -6055,6 +6055,86 @@ class TestApplyAISuggestionsWorkflowAction(
 
         delay.assert_called_once_with(action_id=action.pk, document_id=self.doc.pk)
 
+    def test_document_added_workflow_applies_ai_custom_fields_after_assignment(
+        self,
+    ) -> None:
+        invoice_number = CustomField.objects.create(
+            name="Invoice Number",
+            data_type=CustomField.FieldDataType.STRING,
+        )
+        invoice_total = CustomField.objects.create(
+            name="Invoice Total",
+            data_type=CustomField.FieldDataType.MONETARY,
+        )
+        assignment = WorkflowAction.objects.create(
+            type=WorkflowAction.WorkflowActionType.ASSIGNMENT,
+        )
+        assignment.assign_custom_fields.add(invoice_number, invoice_total)
+        ai_action = self.make_action(
+            ai_suggestion_fields=[WorkflowAction.AISuggestionField.CUSTOM_FIELDS],
+        )
+        trigger = WorkflowTrigger.objects.create(
+            type=WorkflowTrigger.WorkflowTriggerType.DOCUMENT_ADDED,
+        )
+        workflow = Workflow.objects.create(name="AI custom fields", order=0)
+        workflow.triggers.add(trigger)
+        workflow.actions.add(assignment, ai_action)
+
+        with (
+            mock.patch("documents.tasks.apply_ai_suggestions.delay") as delay,
+            self.captureOnCommitCallbacks(execute=True),
+        ):
+            run_workflows(
+                WorkflowTrigger.WorkflowTriggerType.DOCUMENT_ADDED,
+                self.doc,
+            )
+
+        delay.assert_called_once_with(
+            action_id=ai_action.pk,
+            document_id=self.doc.pk,
+        )
+        self.assertEqual(
+            set(
+                CustomFieldInstance.objects.filter(document=self.doc).values_list(
+                    "field_id",
+                    flat=True,
+                ),
+            ),
+            {invoice_number.pk, invoice_total.pk},
+        )
+
+        suggestions = {
+            **SUGGESTIONS,
+            "custom_fields": {
+                invoice_number.name: "INV-123",
+                invoice_total.name: "49.95",
+            },
+        }
+        with (
+            mock.patch(
+                "documents.workflows.ai.get_ai_document_classification",
+                return_value=suggestions,
+            ),
+            mock.patch("documents.tasks.index_document"),
+            mock.patch("documents.tasks.clear_document_caches"),
+        ):
+            tasks.apply_ai_suggestions(ai_action.pk, self.doc.pk)
+
+        self.assertEqual(
+            CustomFieldInstance.objects.get(
+                document=self.doc,
+                field=invoice_number,
+            ).value,
+            "INV-123",
+        )
+        self.assertEqual(
+            CustomFieldInstance.objects.get(
+                document=self.doc,
+                field=invoice_total,
+            ).value,
+            "49.95",
+        )
+
     def test_consumption_trigger_is_ignored(self) -> None:
         """
         GIVEN:
