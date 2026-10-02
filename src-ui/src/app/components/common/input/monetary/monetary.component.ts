@@ -58,6 +58,7 @@ export class MonetaryComponent extends AbstractInputComponent<string> {
     this.monetaryValue = this.parseMonetaryValue(newValue, true)
 
     this.value = this.currency + this.monetaryValue
+    this.changeDetector.markForCheck()
   }
 
   public monetaryValueChange(fixed: boolean = false): void {

@@ -34,6 +34,19 @@ describe('MonetaryComponent', () => {
     expect(component.monetaryValue).toEqual('123.40')
   })
 
+  it('should mark the view for refresh when a form value is written', () => {
+    const markForCheckSpy = jest.spyOn(
+      component['changeDetector'],
+      'markForCheck'
+    )
+
+    component.writeValue('49.95')
+
+    expect(component.currency).toEqual('USD')
+    expect(component.monetaryValue).toEqual('49.95')
+    expect(markForCheckSpy).toHaveBeenCalled()
+  })
+
   it('should set monetary value to fixed decimals', () => {
     component.monetaryValue = '10.5'
     component.monetaryValueChange(true)
